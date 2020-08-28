@@ -16,17 +16,18 @@ app.post("/asset", async (req, res) => {
 });
 
 app.post("/assets/session", async (req, res) => {
-  const { assetId, sessionId } = req.body; // pass in the asset type
+  const { assetId, sessionId } = req.body;
 
   try {
-    const exists = await db.raw(`select asset_sessions.id from asset_sessions
-inner join assets on asset_sessions.asset_id = assets.id
-where session_id = '1' AND assets.type = 1`);
+    // delete if type already exists in session
+    await db.raw(`with currentAsset as (select * from assets where id = ${assetId}),
+currentSession as (select asset_sessions.id from asset_sessions
+inner join assets a on asset_sessions.asset_id = a.id
+inner join currentAsset ca on a.type = ca.type
+where asset_sessions.session_id = ${sessionId})
 
-    if (exists.rows.length > 0) {
-      await db.raw(`delete from from asset_sessions
-where id = ${exists.rows[0].id}`);
-    }
+delete from asset_sessions
+where exists(select * from currentSession where currentSession.id = asset_sessions.id);`);
 
     const result = await db.raw(
       `insert into asset_sessions (asset_id, session_id) values(${assetId}, '${sessionId}')` // parameterize
@@ -57,8 +58,6 @@ app.get("/assets/:organizationId", async (req, res) => {
 
   res.json(result.rows);
 });
-
-app.post("/session");
 
 app.get("/", (req, res) => {
   res.json({ hello: "world" });
